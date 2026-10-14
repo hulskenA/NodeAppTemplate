@@ -111,6 +111,20 @@ test('dev mode with SIGNIN=none runs as the public app', async () => {
   } finally { dev.child.kill(); }
 });
 
+test('dev mode cannot be switched on by a variable, nor on the server', async () => {
+  for (const [env, args] of [[{ DEV: '1' }, []], [{ NODE_ENV: 'production' }, ['--dev']]]) {
+    const app = await start({ SIGNIN: 'required', ...env }, args);
+    try {
+      assert.equal((await fetch(`${app.base}/api/me`, { headers: { 'Remote-User': 'ann', 'Remote-Groups': 'friends' } }).then((r) => r.json())).me.user, 'ann');
+    } finally { app.child.kill(); }
+  }
+});
+
+test('a malformed address gets a plain answer, not a crash', async () => {
+  const app = await start({ SIGNIN: 'none' });
+  try { assert.ok([400, 404].includes((await fetch(`${app.base}/%`)).status)); } finally { app.child.kill(); }
+});
+
 test('dev mode signs in a fake user, with the groups asked for', async () => {
   const dev = await start({ DEV_USER: 'sam', DEV_GROUPS: 'devs,qa' }, ['--dev']);
   try {

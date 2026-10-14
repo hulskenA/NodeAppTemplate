@@ -6,8 +6,11 @@ import { fileURLToPath } from 'node:url';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-/** `npm run dev`: a fake signed-in user, no sign-in in front (none with SIGNIN=none). Never on the server. */
-export const DEV = process.argv.includes('--dev') || process.env.DEV === '1';
+/**
+ * `npm run dev`: a fake signed-in user, no sign-in in front (none with SIGNIN=none). Only from the
+ * --dev flag (no variable can switch it on), and never where NODE_ENV is production, as on the server.
+ */
+export const DEV = process.argv.includes('--dev') && process.env.NODE_ENV !== 'production';
 
 export const PORT = Number(process.env.PORT) || 3001;
 // Only ever 127.0.0.1: nginx is the one door in, and it is nginx that asks for the sign-in.

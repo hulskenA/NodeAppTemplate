@@ -84,7 +84,8 @@ export function sameOrigin(req) {
 
 /** A file from public/, with an ETag so browsers check cheaply and never run stale scripts. */
 export async function serveStatic(req, res, pathname) {
-  let rel = decodeURIComponent(pathname);
+  let rel;
+  try { rel = decodeURIComponent(pathname); } catch { return false; }
   if (rel.endsWith('/')) rel += 'index.html';
   const file = path.normalize(path.join(PUBLIC, rel));
   if (!file.startsWith(PUBLIC + path.sep)) return false;
