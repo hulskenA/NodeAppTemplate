@@ -1,6 +1,7 @@
 // Everything the app reads from its environment, in one place. On the server, Control Center
 // sets PORT, NODE_ENV and the variables of control-center.yml's `env:`, plus the secrets added on
 // the app's page. Locally, `npm run dev` fills in what is missing.
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -17,6 +18,18 @@ export const PORT = Number(process.env.PORT) || 3001;
 export const HOST = '127.0.0.1';
 
 export const APP_NAME = process.env.APP_NAME || 'My app';
+
+/**
+ * Where the app keeps files and SQLite databases. On the server (database: sqlite or postgres in
+ * control-center.yml) the panel sets it to the app's own folder, kept across deploys and
+ * rollbacks; locally it is data/ in the project (not in git). Never write into the code folder:
+ * each deploy is a new one.
+ */
+export const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
+fs.mkdirSync(DATA_DIR, { recursive: true });
+
+/** database: postgres only: postgresql://<role>:<password>@127.0.0.1:5432/<db>. Empty otherwise. */
+export const DATABASE_URL = process.env.DATABASE_URL || '';
 
 /**
  * How the app knows who is signed in.
