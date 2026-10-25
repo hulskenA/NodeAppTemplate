@@ -133,3 +133,34 @@ test('dev mode signs in a fake user, with the groups asked for', async () => {
     assert.deepEqual(me.groups, ['devs', 'qa']);
   } finally { dev.child.kill(); }
 });
+
+test('Hub: the app offers its widget to the person asking', async () => {
+  let r = await fetch(`${app.base}/hub`);
+  assert.equal(r.status, 401, 'only behind the sign-in');
+  r = await fetch(`${app.base}/hub`, { headers: as('lea', ['friends']) });
+  const offer = await r.json();
+  assert.equal(offer.hub, 1);
+  assert.equal(offer.name, 'Test app');
+  assert.deepEqual(offer.widgets.map((w) => w.id), ['latest']);
+  assert.deepEqual(offer.widgets[0].settings[0].options, ['Everyone\'s', 'Mine']);
+});
+
+test('Hub: a widget is built for the viewer, and its button acts as them', async () => {
+  let r = await fetch(`${app.base}/hub/widgets/latest/actions/hello`, { method: 'POST', headers: { ...as('zoe', []), 'Content-Type': 'application/json' }, body: '{}' });
+  assert.equal(r.status, 403, 'buttons need the header Hub sends');
+  r = await fetch(`${app.base}/hub/widgets/latest/actions/hello`, { method: 'POST', headers: { ...as('zoe', []), 'X-Requested-By': 'hub', 'Content-Type': 'application/json' }, body: '{}' });
+  assert.deepEqual(await r.json(), { ok: true, message: 'Posted.' });
+  r = await fetch(`${app.base}/hub/widgets/latest?size=tall&show=Mine`, { headers: as('zoe', []) });
+  const mine = await r.json();
+  assert.ok(mine.blocks[0].items.length >= 1);
+  assert.ok(mine.blocks[0].items.every((i) => i.meta === 'ZOE'), 'Mine: only the viewer\'s messages');
+  r = await fetch(`${app.base}/hub/widgets/nope`, { headers: as('zoe', []) });
+  assert.equal(r.status, 404);
+  r = await fetch(`${app.base}/hub/widgets/latest/actions/nope`, { method: 'POST', headers: { ...as('zoe', []), 'X-Requested-By': 'hub' } });
+  assert.equal(r.status, 404);
+});
+
+test('Hub: a public app offers no widget', async () => {
+  const r = await fetch(`${pub.base}/hub`, { headers: as('forged', ['admins']) });
+  assert.equal(r.status, 404);
+});

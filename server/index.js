@@ -25,7 +25,9 @@ export const server = http.createServer(async (req, res) => {
     // (a database, a disk) only if a failure there means the app is really down.
     if (url.pathname === '/health') return send(res, 200, 'ok\n', 'text/plain', { 'Cache-Control': 'no-store' });
 
-    if (url.pathname.startsWith('/api/')) {
+    // The app's API, and Hub's requests for its widgets (server/hub.js), answered the same way.
+    const isApi = url.pathname.startsWith('/api/') || url.pathname === '/hub' || url.pathname.startsWith('/hub/');
+    if (isApi) {
       const found = match(req.method, url.pathname);
       if (!found) {
         const known = routes.some(([, p]) => (typeof p === 'string' ? p === url.pathname : p.test(url.pathname)));
@@ -48,7 +50,7 @@ export const server = http.createServer(async (req, res) => {
     if (status === 500) console.error(`[${req.method} ${url.pathname}]`, err);
     if (res.headersSent) return res.end();
     const message = status === 500 ? 'Something went wrong on the server. Its log has the details.' : err.message;
-    return url.pathname.startsWith('/api/') ? json(res, status, { ok: false, message }) : send(res, status, `${message}\n`);
+    return url.pathname.startsWith('/api/') || url.pathname.startsWith('/hub') ? json(res, status, { ok: false, message }) : send(res, status, `${message}\n`);
   }
 });
 

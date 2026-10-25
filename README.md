@@ -14,6 +14,8 @@ What it already does:
   console, stops cleanly when PM2 restarts it.
 - **Tests** (`npm test`) and a **local mode** (`npm run dev`) with a fake signed-in user.
 - **A guide** (`docs/`): the app's page on the documentation site, updated by each deploy.
+- **A widget on Hub**, the server's home page: each person sees the app's latest news on their
+  board, built for them (see Widgets on Hub).
 
 The home page is an example (a message board kept in memory): replace it.
 
@@ -49,7 +51,8 @@ Then push, and press **Deploy** on the app's page in the panel.
 
 | Path | What |
 |---|---|
-| `server/routes.js` | The app's API: add routes here. Each returns a value (sent as JSON) or throws `HttpError` |
+| `server/routes.js` | The app's API: add routes here. Each returns a value (sent as JSON) or throws `HttpError`. Also the app's widgets on Hub (`widgets`) |
+| `server/hub.js` | Answers Hub's requests for the widgets: nothing to change in it |
 | `server/auth.js` | `who`, `requireUser`, `requireGroup`: who is signed in |
 | `server/config.js` | Everything read from the environment |
 | `server/http.js` | Answers, JSON bodies, the same-origin check, static files, security headers |
@@ -120,6 +123,54 @@ Set `database:` in `control-center.yml` (or on the app's page, Control Center 0.
 and `DATABASE_URL` is empty unless you set it. The panel copies each database every night (the
 last 7 kept). Choose before the first deploy: switching between `sqlite` and `postgres` later
 is refused, since the panel does not convert data. A staging copy starts with its own empty data.
+
+## Open paths
+
+A part of the app that machines call with their own token (a runner, a webhook) can skip the
+sign-in (Control Center 0.21):
+
+```yaml
+open_paths:
+  - /hooks/
+```
+
+nginx does not ask the sign-in on those paths and empties the `Remote-*` headers, so nobody is
+signed in there: `who(req)` finds no one. Leave those routes out of `requireUser` and check the
+caller's token yourself (keep it in Secrets, compare it in constant time). Up to 5 paths, each
+starting and ending with `/`, never `/` itself; not with `access: public`.
+
+## Widgets on Hub
+
+Hub (`hub.<your domain>`) shows each person the apps they can open, and a board of widgets from
+those apps. The app offers its widgets in `server/routes.js`, under `widgets`; `server/hub.js`
+answers Hub. The example offers **Latest messages**, with a setting (everyone's or mine) and a
+**Say hello** button.
+
+```js
+const widgets = {
+  name: APP_NAME, icon: 'forum', summary: 'One line about the app.',
+  widgets: {
+    latest: {
+      title: 'Latest messages',
+      sizes: ['small', 'wide', 'tall'],                  // the first is the default
+      settings: [{ id: 'show', label: 'Show', options: ['Everyone\'s', 'Mine'] }],
+      content(me, { size, settings }) {                  // me: who is asking, as in who(req)
+        return { blocks: [{ type: 'stat', label: 'Messages', value: '12' }] };
+      },
+      actions: { hello(me, arg) { return { message: 'Posted.' }; } },
+    },
+  },
+};
+```
+
+- Hub asks with the viewer's sign-in headers: build each widget for `me`, and check rights as in
+  any route (`groups: ['admins']` on a widget keeps it for that group).
+- The blocks are `stat`, `list`, `progress`, `bars`, `text` and `buttons`; links go to the server's
+  own addresses only. The whole format is in ObjimoHub's `WIDGETS.md`.
+- No widget: leave `widgets` empty. A public app (`SIGNIN: none`) offers none, since Hub could not
+  tell who is asking.
+- Try it: run the app, add it with its port to `demo/apps.yml` in a copy of ObjimoHub, then
+  `npm run dev` there.
 
 ## Rules worth keeping
 

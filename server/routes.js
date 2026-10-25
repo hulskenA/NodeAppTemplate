@@ -4,6 +4,7 @@
 import { readJson, rateLimit, HttpError } from './http.js';
 import { who, requireUser, requireGroup, signOutUrl } from './auth.js';
 import { APP_NAME, SIGNIN } from './config.js';
+import { hubRoutes } from './hub.js';
 
 const messages = []; // { id, text, by, at } — gone at each restart; use a database or a file for real data.
 let nextId = 1;
@@ -12,6 +13,42 @@ let nextId = 1;
 // posting is capped for the whole app so a script cannot flood the board.
 const PUBLIC = SIGNIN === 'none';
 const postLimit = rateLimit(20, 60_000);
+
+// What the app shows on Hub, the server's home page (server/hub.js has the format): one widget,
+// built for the person asking, with a button that does what the page's own button does. Replace
+// it with your app's, or leave `widgets` empty for no widget. Hub only knows who is asking behind
+// the sign-in: a public app (SIGNIN: none) offers no widget.
+const widgets = {
+  name: APP_NAME,
+  icon: 'forum',
+  summary: 'An example message board.',
+  widgets: {
+    latest: {
+      title: 'Latest messages',
+      description: 'The newest messages on the board, and a button to say hello.',
+      sizes: ['small', 'wide', 'tall'],
+      settings: [{ id: 'show', label: 'Show', options: ['Everyone\'s', 'Mine'] }],
+      content(me, { size, settings }) {
+        const list = messages.filter((m) => settings.show !== 'Mine' || m.by === me.name).slice().reverse();
+        return {
+          footer: `${messages.length} on the board`,
+          refresh: 60,
+          blocks: [
+            { type: 'list', empty: 'No message yet.', items: list.slice(0, size === 'tall' ? 8 : 3).map((m) => ({ text: m.text, meta: m.by })) },
+            { type: 'buttons', buttons: [{ label: 'Say hello', icon: 'waving_hand', action: { id: 'hello' } }] },
+          ],
+        };
+      },
+      actions: {
+        hello(me) {
+          messages.push({ id: nextId++, text: 'Hello from Hub', by: me.name, at: Date.now() });
+          if (messages.length > 500) messages.shift();
+          return { message: 'Posted.' };
+        },
+      },
+    },
+  },
+};
 
 /** [method, path (a string, or a RegExp whose groups become params), handler] */
 export const routes = [
@@ -45,4 +82,7 @@ export const routes = [
     messages.splice(i, 1);
     return { ok: true, message: 'Deleted.' };
   }],
+
+  // Hub's three requests: /hub, /hub/widgets/<id>, /hub/widgets/<id>/actions/<action>.
+  ...(PUBLIC ? [] : hubRoutes(widgets)),
 ];
